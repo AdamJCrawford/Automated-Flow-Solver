@@ -1,0 +1,4 @@
+scikit-image
+numpy
+pillow
+pure-python-adb
