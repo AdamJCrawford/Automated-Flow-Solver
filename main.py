@@ -1,13 +1,14 @@
 import numpy as np
 import pyflowsolver
-import skimage
 
 from PIL import Image
 from ppadb.client import Client
+from skimage.color import rgb2lab
 
 
-def draw_paths(device, paths: list[list[list[int]]], indicies: dict[tuple[float]:list[str, int, int]], pixel_grid_boarder_indices: list[int], grid_cell_height: int, grid_length: int, grid_height: int) -> None:
-    for i, value in enumerate(indicies.values()):
+def draw_paths(device, paths: list[list[list[int]]], indices: dict[tuple[float]:list[str, int, int]], pixel_grid_boarder_indices: list[int], grid_cell_height: int, grid_length: int, grid_height: int) -> None:
+    del paths[-1][-1]
+    for i, value in enumerate(indices.values()):
         if len(value) != 1:
             initial_x = pixel_grid_boarder_indices[value[1]] + \
                 grid_cell_height // 2
@@ -85,10 +86,11 @@ def main() -> None:
     image = Image.open("puzzle.png")
     image = np.array(image, dtype=np.uint8)[:, :, :3]
 
-    grid_color = np.array(list(image[749][:3])[2])
+    grid_color = np.array(list(image[len(image) // 2][2]))
 
     cnt, last_index_cnt = 0, 0
     indices = []
+
     for i, row in enumerate(image):
         if np.array_equal(grid_color, row[10]):
             if i - last_index_cnt <= 5:
@@ -106,22 +108,35 @@ def main() -> None:
 
     colors_seen = {(0, 0, 0): ['.']}
 
+    offset = (grid_cell_height * 4) // 10
+
     for i in range(grid_height):
         for j in range(grid_height):
             i_index = indices[i] + grid_cell_height // 2
             j_index = j * grid_cell_height + grid_cell_height // 2
 
-            curr_pixel = tuple(skimage.color.rgb2lab(
-                image[i_index][j_index] / 255))
+            curr_pixel = tuple(rgb2lab(image[i_index][j_index] / 255))
 
-            for key in colors_seen:
-                if difference(curr_pixel, key) < 7 or difference(curr_pixel, (0, 0, 0)) < 10:
-                    grid[i][j] = colors_seen[key][0]
-                    break
-            else:
-                colors_seen[curr_pixel] = [
-                    chr(ord('@') + len(colors_seen)), i, j]
-                grid[i][j] = colors_seen[curr_pixel][0]
+            for current_offset in range(j_index - offset, j_index + offset):
+                left_pixel = tuple(
+                    rgb2lab(image[i_index][current_offset] / 255))
+                right_pixel = tuple(
+                    rgb2lab(image[i_index][current_offset + 1] / 255))
+                if difference(left_pixel, right_pixel) > 7:
+
+                    for key in colors_seen:
+                        if difference(curr_pixel, key) < 7 or difference(curr_pixel, (0, 0, 0)) < 10:
+                            grid[i][j] = colors_seen[key][0]
+                            break
+                    else:
+                        colors_seen[curr_pixel] = [
+                            chr(ord('@') + len(colors_seen)), i, j]
+                        grid[i][j] = colors_seen[curr_pixel][0]
+
+            if grid[i][j] == None:
+                grid[i][j] = '.'
+
+    print(*grid, sep="\n")
 
     unprocessed_path = pyflowsolver.pyflow_solver_main(grid)
 
